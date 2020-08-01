@@ -24,6 +24,7 @@ from pipeline import (
 # ============================================================================
 IMAGE_DIR = "./out"
 # VIDEO_SOURCE = "input.mp4"
+# VIDEO_SOURCE = "prime_test_video.mp4"
 VIDEO_SOURCE = "prime_test_video.mp4"
 SHAPE = (720, 1280)  # HxW
 # SHAPE = (540, 960)  # HxW
@@ -41,7 +42,8 @@ def train_bg_subtractor(inst, cap, num=500):
     print ('Training BG Subtractor...')
     i = 0
     for frame in cap:
-        inst.apply(frame, None, 0.001)
+        imS = cv2.resize(frame, (1280, 720))
+        inst.apply(imS, None, 0.001)
         i += 1
         if i >= num:
             return cap
@@ -63,8 +65,8 @@ def main():
     pipeline = PipelineRunner(pipeline=[
         ContourDetection(bg_subtractor=bg_subtractor,
                          save_image=True, image_dir=IMAGE_DIR
-                         # , min_contour_width=100, min_contour_height=100),
-                         ),
+                         , min_contour_width=50, min_contour_height=50),
+                         # ),
         # we use y_weight == 2.0 because traffic are moving vertically on video
         # use x_weight == 2.0 for horizontal.
         # VehicleCounter(exit_masks=[exit_mask], y_weight=2.0),
@@ -83,6 +85,7 @@ def main():
     _frame_number = -1
     frame_number = -1
     for frame in cap:
+
         if not frame.any():
             log.error("Frame capture failed, stopping...")
             break
@@ -98,6 +101,7 @@ def main():
         # this needed to make video from cutted frames
         frame_number += 1
 
+        frame = cv2.resize(frame, (1280, 720))
         # plt.imshow(frame)
         # plt.show()
         # return

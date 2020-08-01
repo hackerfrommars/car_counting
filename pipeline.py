@@ -14,6 +14,8 @@ BOUNDING_BOX_COLOUR = (255, 0, 0)
 CENTROID_COLOUR = (0, 0, 255)
 CAR_COLOURS = [(0, 0, 255)]
 EXIT_COLOR = (66, 183, 42)
+MAX_ALPHA = -0.2564
+MAX_B = 423
 
 
 class PipelineRunner(object):
@@ -124,9 +126,11 @@ class ContourDetection(PipelineProcessor):
 
         for (i, contour) in enumerate(contours):
             (x, y, w, h) = cv2.boundingRect(contour)
+            dyn_max = MAX_ALPHA * (x+w/2) + MAX_B
             contour_valid = (w >= self.min_contour_width) and (
                 h >= self.min_contour_height) and (
-                w < 300) and (h < 300)
+                w < 400) and (h < 400) and (
+                w < dyn_max) and (h < dyn_max)
 
             if not contour_valid:
                 continue
