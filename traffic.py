@@ -2,10 +2,12 @@ import os
 import logging
 import logging.handlers
 import random
+from threading import Thread
 
 import numpy as np
-import skvideo.io
+#import skvideo.io
 import cv2
+import imutils, time
 from imutils.video import VideoStream
 import matplotlib.pyplot as plt
 
@@ -26,12 +28,13 @@ from pipeline import (
 IMAGE_DIR = "./out"
 # VIDEO_SOURCE = "input.mp4"
 # VIDEO_SOURCE = "prime_test_video.mp4"
-VIDEO_SOURCE = "'rtsp://admin:asd123ASD@192.168.1.64/1'"
-SHAPE = (720, 1280)  # HxW
+VIDEO_SOURCE = "rtsp://admin:asd123ASD@192.168.1.64/1"
+SHAPE = (360, 640)  # HxW
 # SHAPE = (540, 960)  # HxW
 EXIT_PTS = np.array([
     # [[270, 138], [724, 191], [724, 253], [282, 302], [259, 258]]
-    [[360, 180], [984, 252], [984, 330], [390, 398], [344, 344]]
+    # [[360, 180], [984, 252], [984, 330], [390, 398], [344, 344]]
+    [[180, 90], [474, 126], [474, 165], [195, 199], [172, 172]]
 ])
 # ============================================================================
 
@@ -48,6 +51,31 @@ def train_bg_subtractor(inst, cap, num=500):
         i += 1
         if i >= num:
             return cap
+
+class VideoStreamWidget(object):
+    def __init__(self, link, camname, src=0):
+        self.capture = cv2.VideoCapture(link)
+        # Start the thread to read frames from the video stream
+        self.thread = Thread(target=self.update, args=())
+        self.thread.daemon = True
+        self.thread.start()
+        self.camname = camname
+        self.link = link
+        print(camname)
+        print(link)
+
+    def update(self):
+        # Read the next frame from the stream in a different thread
+        while True:
+            if self.capture.isOpened():
+                (self.status, self.frame) = self.capture.read()
+            time.sleep(.01)
+
+    def return_frame(self):
+
+        frame = imutils.resize(self.frame, width=640, height=360)
+        return frame
+
 
 
 def main():
@@ -83,7 +111,9 @@ def main():
     # Set up image source
     # You can use also CV2, for some reason it not working for me
     # cap = skvideo.io.vreader(VIDEO_SOURCE)
-    cap = VideoStream('video_26_08_6.avi').start()
+    # cap = VideoStream(VIDEO_SOURCE).start()
+    #cap = cv2.VideoCapture('rtsp://admin:asd123ASD@192.168.1.64/1')
+    cap = VideoStreamWidget(VIDEO_SOURCE,"Cam1")
 
     # skipping 500 frames to train bg subtractor
     # train_bg_subtractor(bg_subtractor, cap, num=500)
@@ -92,24 +122,33 @@ def main():
     frame_number = -1
     # for frame in cap:
     while True:
-        frame = cap.read()
+        # frame = cap.read()
+        #ret, frame = cap.read()
 
-        if not frame.any():
-            log.error("Frame capture failed, stopping...")
-            break
+        #if not ret:
+        #    log.error("Frame capture failed, stopping...")
+        #    continue
+
+        try:
+            frame = cap.return_frame()
+        except:
+            print('no_frame')
+            continue
+        frame_number = frame_number % 100000
+        _frame_number = _frame_number % 100000
 
         # real frame number
         _frame_number += 1
 
         # skip every 2nd frame to speed up processing
-        if _frame_number % 3 != 0:
+        if _frame_number % 2 != 0:
             continue
 
         # frame number that will be passed to pipline
         # this needed to make video from cutted frames
         frame_number += 1
 
-        frame = cv2.resize(frame, (1280, 720))
+        #frame = cv2.resize(frame, (1280, 720))
         # plt.imshow(frame)
         # plt.show()
         # return
