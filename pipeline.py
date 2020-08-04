@@ -2,6 +2,7 @@ import os
 import logging
 import csv
 from datetime import datetime
+import imutils
 
 import numpy as np
 import cv2
@@ -90,14 +91,15 @@ class ContourDetection(PipelineProcessor):
         image_dir - where to save images(must exist).        
     '''
 
-    def __init__(self, bg_subtractor, min_contour_width=35, min_contour_height=35, save_image=False, image_dir='images'):
+    def __init__(self, network, min_contour_width=35, min_contour_height=35, save_image=False, image_dir='images', confidence=0.2):
         super(ContourDetection, self).__init__()
 
-        self.bg_subtractor = bg_subtractor
+        self.network = network
         self.min_contour_width = min_contour_width
         self.min_contour_height = min_contour_height
         self.save_image = save_image
         self.image_dir = image_dir
+        self.confidence = confidence
 
     def filter_mask(self, img, a=None):
         '''
@@ -115,6 +117,34 @@ class ContourDetection(PipelineProcessor):
         dilation = cv2.dilate(opening, kernel, iterations=2)
 
         return dilation
+
+    def detect_vehicle_network(self, frame, frame_number):
+        matches = []
+
+        frame = imutils.resize(frame, width=640)
+        (h, w) = frame.shape[:2]
+        blob = cv2.dnn.blobFromImage(cv2.resize(frame, (300, 300)),
+                                     0.007843, (300, 300), 127.5)
+        self.network.setInput(blob)
+        detections = self.network.forward()
+        has_car = False
+        for i in np.arange(0, detections.shape[2]):
+            confidence = detections[0, 0, i, 2]
+            if confidence > self.confidence:
+                idx = int(detections[0, 0, i, 1])
+                if idx != 7:
+                    continue
+                has_car = True
+                box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
+                (startX, startY, endX, endY) = box.astype("int")
+                centroid = utils.get_centroid(startX*2, startY*2, (endX-startX)*2, (endY-startY)*2)
+                if self.save_image:
+                    cv2.rectangle(frame, (startX, startY), (endX, endY),
+                                  (0, 0, 0), 2)
+                matches.append(((startX*2, startY*2, (endX-startX)*2, (endY-startY)*2), centroid))
+        if has_car and self.save_image:
+            utils.save_frame(frame, self.image_dir + "/mask_%04d.png" % frame_number, flip=False)
+        return matches
 
     def detect_vehicles(self, fg_mask, context):
 
@@ -145,17 +175,18 @@ class ContourDetection(PipelineProcessor):
         frame = context['frame'].copy()
         frame_number = context['frame_number']
 
-        fg_mask = self.bg_subtractor.apply(frame, None, 0.001)
+        # fg_mask = self.bg_subtractor.apply(frame, None, 0.001)
         # just thresholding values
-        fg_mask[fg_mask < 240] = 0
-        fg_mask = self.filter_mask(fg_mask, frame_number)
+        # fg_mask[fg_mask < 240] = 0
+        # fg_mask = self.filter_mask(fg_mask, frame_number)
 
-        if self.save_image:
-            utils.save_frame(fg_mask, self.image_dir +
-                             "/mask_%04d.png" % frame_number, flip=False)
+        # if self.save_image:
+        #     utils.save_frame(fg_mask, self.image_dir +
+        #                      "/mask_%04d.png" % frame_number, flip=False)
 
-        context['objects'] = self.detect_vehicles(fg_mask, context)
-        context['fg_mask'] = fg_mask
+        # context['objects'] = self.detect_vehicles(fg_mask, context)
+        context['objects'] = self.detect_vehicle_network(frame, frame_number)
+        # context['fg_mask'] = fg_mask
 
         return context
 

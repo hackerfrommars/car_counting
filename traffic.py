@@ -6,6 +6,7 @@ import random
 import numpy as np
 import skvideo.io
 import cv2
+from imutils.video import VideoStream
 import matplotlib.pyplot as plt
 
 import utils
@@ -25,7 +26,7 @@ from pipeline import (
 IMAGE_DIR = "./out"
 # VIDEO_SOURCE = "input.mp4"
 # VIDEO_SOURCE = "prime_test_video.mp4"
-VIDEO_SOURCE = "prime_test_video.mp4"
+VIDEO_SOURCE = "'rtsp://admin:asd123ASD@192.168.1.64/1'"
 SHAPE = (720, 1280)  # HxW
 # SHAPE = (540, 960)  # HxW
 EXIT_PTS = np.array([
@@ -58,33 +59,40 @@ def main():
 
     # there is also bgslibrary, that seems to give better BG substruction, but
     # not tested it yet
-    bg_subtractor = cv2.createBackgroundSubtractorMOG2(
-        history=500, detectShadows=True)
+
+    # bg_subtractor = cv2.createBackgroundSubtractorMOG2(
+    #     history=500, detectShadows=True)
+
+    net = cv2.dnn.readNetFromCaffe('MobileNetSSD_deploy.prototxt.txt', 'MobileNetSSD_deploy.caffemodel')
 
     # processing pipline for programming conviniance
     pipeline = PipelineRunner(pipeline=[
-        ContourDetection(bg_subtractor=bg_subtractor,
-                         save_image=True, image_dir=IMAGE_DIR
+        ContourDetection(network=net,
+                         image_dir=IMAGE_DIR
                          , min_contour_width=50, min_contour_height=50),
                          # ),
         # we use y_weight == 2.0 because traffic are moving vertically on video
         # use x_weight == 2.0 for horizontal.
-        # VehicleCounter(exit_masks=[exit_mask], y_weight=2.0),
-        VehicleCounter(exit_masks=[exit_mask], x_weight=2.0),
-        Visualizer(image_dir=IMAGE_DIR),
-        CsvWriter(path='./', name='report.csv')
-    ], log_level=logging.DEBUG)
+        # VehicleCounter(exit_masks=[exit_mask], y_weight=2.0)
+        VehicleCounter(exit_masks=[exit_mask], x_weight=2.0)
+        # VehicleCounter(exit_masks=[exit_mask])
+        # , Visualizer(image_dir=IMAGE_DIR)
+        # , CsvWriter(path='./', name='report.csv')
+    ], log_level=logging.NOTSET)
 
     # Set up image source
     # You can use also CV2, for some reason it not working for me
-    cap = skvideo.io.vreader(VIDEO_SOURCE)
+    # cap = skvideo.io.vreader(VIDEO_SOURCE)
+    cap = VideoStream('video_26_08_6.avi').start()
 
     # skipping 500 frames to train bg subtractor
-    train_bg_subtractor(bg_subtractor, cap, num=500)
+    # train_bg_subtractor(bg_subtractor, cap, num=500)
 
     _frame_number = -1
     frame_number = -1
-    for frame in cap:
+    # for frame in cap:
+    while True:
+        frame = cap.read()
 
         if not frame.any():
             log.error("Frame capture failed, stopping...")
@@ -94,7 +102,7 @@ def main():
         _frame_number += 1
 
         # skip every 2nd frame to speed up processing
-        if _frame_number % 2 != 0:
+        if _frame_number % 3 != 0:
             continue
 
         # frame number that will be passed to pipline
@@ -117,6 +125,7 @@ def main():
             'frame_number': frame_number,
         })
         pipeline.run()
+    cap.release()
 
 # ============================================================================
 
